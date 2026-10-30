@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#172c28"><title>너구리의 달빛 산책</title><meta name="description" content="달빛 숲에서 도토리를 모으는 너구리 아케이드 게임"><link rel="stylesheet" href="style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#172c28"><title>너구리의 사다리 모험</title><meta name="description" content="사다리를 타고 층을 오르며 압정과 적을 피하는 너구리 플랫폼 게임"><link rel="stylesheet" href="style.css"></head>
 <body>
 <main>
-<header><a class="brand" href="./"><span>◈</span> LITTLE FOREST <small>작은 숲 게임실</small></a><span class="edition">Nº 01 — MOONLIGHT WALK</span></header>
-<section class="intro"><div class="eyebrow">잠들지 않은 작은 모험가에게</div><h1>너구리의 <em>달빛 산책</em><span>✦</span></h1><p>고요한 숲, 반짝이는 도토리.<br class="mobile"> 오늘 밤은 얼마나 멀리 걸어볼까요?</p></section>
+<header><a class="brand" href="./"><span>◈</span> LITTLE FOREST <small>작은 숲 게임실</small></a><span class="edition">Nº 02 — LADDER ADVENTURE</span></header>
+<section class="intro"><div class="eyebrow">한 층 더 높이, 작은 모험가</div><h1>너구리의 <em>사다리 모험</em><span>✦</span></h1><p>사다리를 타고 꼭대기까지!<br class="mobile"> 압정과 순찰하는 적을 조심하세요.</p></section>
 <section class="game-card" aria-label="너구리 게임">
-<div class="toolbar"><div><span class="live-dot"></span> 달빛 숲 <small>· ENDLESS RUN</small></div><div class="stats"><span>도토리 <b id="score">0</b></span><span class="record">최고 기록 <b id="best">0</b></span><button id="pause" aria-label="일시정지" title="일시정지 (P)">Ⅱ</button><button id="sound" aria-label="소리 켜기" title="소리 켜기">♪</button></div></div>
-<div class="stage"><canvas id="game" width="1000" height="460" aria-label="스페이스 키로 점프해 도토리를 모으고 버섯을 피하세요"></canvas><div id="overlay" class="overlay"><div class="moon-label">A LITTLE ADVENTURE AWAITS</div><div id="overlay-icon">☾</div><h2 id="overlay-title">달빛 따라, 폴짝!</h2><p id="overlay-text">도토리는 모으고, 버섯은 뛰어넘어요.<br>너구리와 함께 밤 산책을 시작해요.</p><button id="start" class="primary">산책 시작하기 <span>→</span></button><small id="overlay-hint">SPACE 또는 화면을 눌러 점프</small></div><div class="scene-label">THE MOONLIT WOODS</div></div>
-<div class="game-footer"><span><i></i> 서두르지 않아도 괜찮아요. 한 번 더 폴짝!</span><span id="distance">0 m 산책 중</span></div>
+<div class="toolbar"><div><span class="live-dot"></span> 달빛 탑 <small>· LADDER CLIMB</small></div><div class="stats"><span>점수 <b id="score">0</b></span><span class="record">최고 기록 <b id="best">0</b></span><button id="pause" aria-label="일시정지" title="일시정지 (P)">Ⅱ</button><button id="sound" aria-label="소리 켜기" title="소리 켜기">♪</button></div></div>
+<div class="stage"><canvas id="game" width="900" height="660" aria-label="좌우 방향키로 이동, 위아래로 사다리 타기, 스페이스로 점프"></canvas><div id="overlay" class="overlay"><div class="moon-label">A LITTLE ADVENTURE AWAITS</div><div id="overlay-icon">☾</div><h2 id="overlay-title">꼭대기를 향해, 폴짝!</h2><p id="overlay-text">사다리를 타고 한 층씩 올라가요.<br>압정과 적을 피해 꼭대기 깃발에 도착하세요.</p><button id="start" class="primary">모험 시작하기 <span>→</span></button><small id="overlay-hint">← → 이동 · ↑ ↓ 사다리 · SPACE 점프</small></div><div class="scene-label">THE MOONLIT TOWER</div></div>
+<div class="game-footer"><span><i></i> 압정은 점프로, 적은 타이밍을 보고 피하세요.</span><span id="distance">1 / 6 층</span></div>
 </section>
-<section class="guide"><div><span class="guide-number">01</span><div><h3>가볍게 뛰어요</h3><p><kbd>SPACE</kbd> <kbd>↑</kbd> 또는 화면 터치</p></div></div><div><span class="guide-number">02</span><div><h3>작은 보물을 모아요</h3><p>도토리 하나에 10점씩 차곡차곡</p></div></div><div><span class="guide-number">03</span><div><h3>버섯을 조심해요</h3><p>점점 빨라지는 숲길을 뛰어넘어요</p></div></div></section>
+<nav class="touch-controls" aria-label="터치 게임 조작"><div><button data-key="ArrowLeft" aria-label="왼쪽 이동">←</button><button data-key="ArrowRight" aria-label="오른쪽 이동">→</button></div><div><button data-key="ArrowUp" aria-label="사다리 올라가기">↑</button><button data-key="ArrowDown" aria-label="사다리 내려가기">↓</button><button data-key="Space" class="jump-button">점프</button></div></nav><section class="guide"><div><span class="guide-number">01</span><div><h3>이동하고 점프해요</h3><p><kbd>← →</kbd> 이동 · <kbd>SPACE</kbd> 점프</p></div></div><div><span class="guide-number">02</span><div><h3>사다리를 타고 올라요</h3><p>사다리 앞에서 <kbd>↑ ↓</kbd> · 꼭대기 깃발이 목표</p></div></div><div><span class="guide-number">03</span><div><h3>압정과 적을 피해요</h3><p>목숨 3개 · 도토리를 모으면 추가 점수</p></div></div></section>
 <footer><span>조금 쉬어가도 좋은, 작은 숲.</span><span>MADE FOR YOUR LITTLE BREAK ✦</span></footer>
 </main><script src="game.js"></script>
 </body></html>
