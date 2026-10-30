@@ -1,28 +1,72 @@
 'use strict';
 const $=s=>document.querySelector(s),canvas=$('#game'),ctx=canvas.getContext('2d'),overlay=$('#overlay');
 const W=900,H=660,floors=[590,490,390,290,190,90],keys=new Set();
-const ladders=floors.slice(0,-1).map((y,i)=>({x:i%2===0?760:140,bottom:y,top:floors[i+1]}));
-const pins=floors.slice(0,5).map((y,i)=>({x:[410,440,380,470,400][i],y,w:36}));
+const STAGES = [
+  {name:'첫 번째 발걸음', seconds:120, speed:1, extraPins:0, extraEnemies:0, shift:0},
+  {name:'바람 부는 탑', seconds:115, speed:1.12, extraPins:1, extraEnemies:0, shift:12},
+  {name:'가시 돋친 길', seconds:110, speed:1.24, extraPins:2, extraEnemies:0, shift:-15},
+  {name:'분주한 순찰대', seconds:105, speed:1.36, extraPins:2, extraEnemies:1, shift:22},
+  {name:'달빛의 미로', seconds:100, speed:1.48, extraPins:3, extraEnemies:1, shift:-25},
+  {name:'위험한 발걸음', seconds:95, speed:1.60, extraPins:4, extraEnemies:1, shift:30},
+  {name:'쌍둥이 파수꾼', seconds:90, speed:1.72, extraPins:4, extraEnemies:2, shift:-30},
+  {name:'가시의 성채', seconds:85, speed:1.84, extraPins:5, extraEnemies:2, shift:35},
+  {name:'폭풍 전야', seconds:80, speed:1.96, extraPins:5, extraEnemies:3, shift:-35},
+  {name:'마지막 달빛', seconds:75, speed:2.08, extraPins:5, extraEnemies:4, shift:40}
+];
+let ladders=[],pins=[],remaining=STAGES[0].seconds;
 let state='ready',score=0,best=0,lives=3,elapsed=0,last=0,invincible=0,moving=false,sound=false,audio,enemies=[],acorns=[],level=1;
 const player={x:90,y:590,vy:0,onGround:true,facing:1,climbing:null,checkpoint:0};
-try{best=Number(localStorage.getItem('raccoon-ladder-best'))||0}catch{}
+try{best=Number(localStorage.getItem('raccoon-stages-best'))||0}catch{}
 function ellipse(x,y,rx,ry,color){ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill()}
 function beep(freq){if(!sound)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);o.frequency.value=freq;g.gain.setValueAtTime(.05,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.12);o.start();o.stop(audio.currentTime+.12)}catch{}}
-function hud(){$('#score').textContent=score;$('#best').textContent=best;$('#distance').textContent=`${player.checkpoint+1} / 6 층 · ♥ ${lives} · ${Math.floor(elapsed)}초`}
+function hud(){
+  $('#score').textContent=score;$('#best').textContent=best;
+  $('#stage-number').textContent=`${level} / ${STAGES.length}`;
+  $('#stage-name').textContent=STAGES[level-1].name;
+  const seconds=Math.ceil(remaining);
+  $('#timer').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+  $('#timer').classList.toggle('urgent',remaining<=15);
+  $('#time-bar').style.width=`${Math.max(0,remaining/STAGES[level-1].seconds)*100}%`;
+  $('#distance').textContent=`${player.checkpoint+1} / 6 층 · ♥ ${lives}`;
+  for(const dot of document.querySelectorAll('[data-stage]')){
+    const n=Number(dot.dataset.stage);dot.classList.toggle('current',n===level);
+    dot.classList.toggle('complete',n<level||(state==='won'&&n===level));
+    dot.setAttribute('aria-label',`${n} 스테이지${n<level?' 완료':n===level?' 현재':''}`);
+  }
+}
 function show(title,text,button,icon){$('#overlay-title').textContent=title;$('#overlay-text').textContent=text;$('#start').innerHTML=button+' <span>→</span>';$('#overlay-icon').textContent=icon;overlay.classList.remove('hidden')}
-function saveBest(){if(score>best){best=score;try{localStorage.setItem('raccoon-ladder-best',String(best))}catch{}}}
-function start(){score=0;lives=3;elapsed=0;invincible=0;level=1;Object.assign(player,{x:90,y:590,vy:0,onGround:true,facing:1,climbing:null,checkpoint:0});enemies=floors.slice(1).map((y,i)=>({x:280+i*46,y,left:230,right:660,v:(i%2?1:-1)*(62+i*9)}));acorns=floors.flatMap((y,i)=>[250,560,695].map(x=>({x,y:y-24,taken:false})));state='running';keys.clear();overlay.classList.add('hidden');$('#pause').textContent='Ⅱ';hud()}
+function saveBest(){if(score>best){best=score;try{localStorage.setItem('raccoon-stages-best',String(best))}catch{}}}
+function loadStage(){
+  const config=STAGES[level-1];remaining=config.seconds;invincible=0;moving=false;
+  Object.assign(player,{x:90,y:590,vy:0,onGround:true,facing:1,climbing:null,checkpoint:0});
+  ladders=floors.slice(0,-1).map((y,i)=>({x:(i%2===0?760:140)+(i%2===0?-config.shift:config.shift),bottom:y,top:floors[i+1]}));
+  pins=floors.slice(0,5).map((y,i)=>({x:[410,440,380,470,400][i]+config.shift,y,w:36}));
+  for(let i=0;i<config.extraPins;i++)pins.push({x:(i%2===0?565:290)+config.shift,y:floors[i],w:36});
+  enemies=floors.slice(1).map((y,i)=>({x:280+i*46,y,left:230,right:660,v:(i%2?1:-1)*(62+i*9)*config.speed}));
+  for(let i=0;i<config.extraEnemies;i++)enemies.push({x:625,y:floors[i+1],left:230,right:660,v:-(70+i*7)*config.speed});
+  acorns=floors.flatMap(y=>[250,560,695].map(x=>({x,y:y-24,taken:false})));
+  state='running';keys.clear();overlay.classList.add('hidden');$('#pause').textContent='Ⅱ';hud();
+}
+function start(){score=0;lives=3;elapsed=0;level=1;loadStage()}
+function nextStage(){if(state!=='cleared'||level>=STAGES.length)return;level++;lives=Math.min(3,lives+1);loadStage()}
+function timeout(){remaining=0;state='over';keys.clear();saveBest();show('시간이 다 되었어요!',`스테이지 ${level} · ${score}점. 다시 도전해 주세요.`,'처음부터 다시','⌛');hud()}
+function clearStage(){
+  score+=500+lives*100+Math.floor(remaining)*5;keys.clear();beep(950);
+  if(level===STAGES.length){state='won';show('10개 스테이지 모두 정복!',`총 ${Math.floor(elapsed)}초 · 최종 ${score}점! 달빛 탑의 주인공이에요.`,'처음부터 다시','★')}
+  else {state='cleared';const next=STAGES[level];show(`스테이지 ${level} 클리어!`,`남은 시간 ${Math.ceil(remaining)}초 · 누적 ${score}점. 다음: ${next.name} / ${next.seconds}초. 목숨 1개 회복!`,`${level+1} 스테이지 시작`,'⚑')}
+  saveBest();hud();
+}
 function jump(){if(state==='running'&&player.onGround&&!player.climbing){player.vy=-385;player.onGround=false;beep(400)}}
 function pause(){keys.clear();if(state==='running'){state='paused';show('잠깐, 숨 고르기','준비가 되면 다시 꼭대기로 올라가요.','계속하기','☾');$('#pause').textContent='▶'}else if(state==='paused'){state='running';overlay.classList.add('hidden');$('#pause').textContent='Ⅱ'}}
-function damage(){if(invincible>0||state!=='running')return;lives--;beep(130);if(lives<=0){state='over';keys.clear();saveBest();show('다시 도전해 볼까요?',`${player.checkpoint+1}층까지 도착했어요. 점수 ${score}점!`,'다시 시작','♡')}else{const f=player.checkpoint;player.x=f===0?90:ladders[f-1].x;player.y=floors[f];player.vy=0;player.climbing=null;player.onGround=true;invincible=2}hud()}
-function update(dt){if(state!=='running')return;elapsed+=dt;invincible=Math.max(0,invincible-dt);const horizontal=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0),vertical=(keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0);moving=horizontal!==0;if(horizontal)player.facing=horizontal;
+function damage(){if(invincible>0||state!=='running')return;lives--;beep(130);if(lives<=0){state='over';keys.clear();saveBest();show('다시 도전해 볼까요?',`스테이지 ${level} · ${player.checkpoint+1}층까지 도착했어요. 점수 ${score}점!`,'처음부터 다시','♡')}else{const f=player.checkpoint;player.x=f===0?90:ladders[f-1].x;player.y=floors[f];player.vy=0;player.climbing=null;player.onGround=true;invincible=2}hud()}
+function update(dt){if(state!=='running')return;elapsed+=dt;remaining=Math.max(0,remaining-dt);if(remaining<=0){timeout();return}invincible=Math.max(0,invincible-dt);const horizontal=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0),vertical=(keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0);moving=horizontal!==0;if(horizontal)player.facing=horizontal;
 if(!player.climbing&&vertical){const ladder=ladders.find(l=>Math.abs(player.x-l.x)<25&&(vertical<0?player.y>l.top+1&&player.y<=l.bottom+3:player.y>=l.top-3&&player.y<l.bottom-1));if(ladder){player.climbing=ladder;player.x=ladder.x;player.vy=0;player.onGround=false}}
 if(player.climbing){const l=player.climbing;player.y+=vertical*130*dt;player.x=l.x;if(player.y<=l.top||player.y>=l.bottom){player.y=Math.max(l.top,Math.min(l.bottom,player.y));player.climbing=null;player.onGround=true;player.vy=0}}else{player.x=Math.max(55,Math.min(W-55,player.x+horizontal*185*dt));const prev=player.y;player.vy+=1150*dt;player.y+=player.vy*dt;player.onGround=false;if(player.vy>=0){const landing=floors.find(y=>prev<=y+.01&&player.y>=y);if(landing!==undefined){player.y=landing;player.vy=0;player.onGround=true}}}
 const floorIndex=floors.findIndex(y=>Math.abs(player.y-y)<1);if(floorIndex>player.checkpoint&&player.onGround){score+=(floorIndex-player.checkpoint)*100;player.checkpoint=floorIndex;beep(600)}
 for(const e of enemies){e.x+=e.v*dt;if(e.x<e.left||e.x>e.right){e.x=Math.max(e.left,Math.min(e.right,e.x));e.v*=-1}if(Math.abs(player.x-e.x)<27&&player.y>e.y-27&&player.y-34<e.y)damage()}
 for(const p of pins)if(player.x+13>p.x-p.w/2&&player.x-13<p.x+p.w/2&&player.y>p.y-15&&player.y-34<p.y+2)damage();
-for(const a of acorns)if(!a.taken&&Math.abs(player.x-a.x)<27&&Math.abs(player.y-20-a.y)<27){a.taken=true;score+=10;beep(800)}
-if(state==='running'&&player.onGround&&player.checkpoint===5&&player.x>796){score+=500+lives*100;state='won';keys.clear();saveBest();show('꼭대기에 도착했어요!',`6층 정복! ${Math.floor(elapsed)}초 · ${score}점 · 남은 목숨 ${lives}개`,'다시 도전하기','⚑')}hud()}
+for(const a of acorns)if(state==='running'&&!a.taken&&Math.abs(player.x-a.x)<27&&Math.abs(player.y-20-a.y)<27){a.taken=true;score+=10;beep(800)}
+if(state==='running'&&player.onGround&&player.checkpoint===5&&player.x>796)clearStage();hud()}
 function raccoon(x,y){ctx.save();ctx.translate(x,y);ctx.scale(.58*player.facing,.58);const run=state==='running'&&player.onGround&&moving?Math.sin(elapsed*17):0;ctx.rotate(player.onGround?0:-.08);ellipse(-5,8,39,6,'#10241f55');ctx.save();ctx.translate(-31,-20);ctx.rotate(-.35+run*.035);ellipse(-14,0,27,12,'#8a9381');ctx.strokeStyle='#424e49';ctx.lineWidth=7;for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-30+i*14,-10);ctx.lineTo(-30+i*14,10);ctx.stroke()}ctx.restore();ellipse(0,-24,29,23,'#899484');ellipse(7,-20,19,18,'#b2b9a0');ellipse(-13+run*4,-1,9,5,'#46554b');ellipse(19-run*4,-1,9,5,'#46554b');ellipse(10,-57,10,13,'#8e9887');ellipse(37,-55,9,12,'#8e9887');ellipse(10,-57,5,7,'#48554e');ellipse(37,-55,4,7,'#48554e');ellipse(25,-43,26,22,'#bac2aa');ellipse(27,-43,24,10,'#3c4945');ellipse(17,-44,3,4,'#172c28');ellipse(37,-44,3,4,'#172c28');ellipse(18,-45,1,1,'#fff');ellipse(38,-45,1,1,'#fff');ellipse(30,-32,13,8,'#d5d9bf');ellipse(35,-35,5,3,'#293b34');ctx.fillStyle='#a1aa72';ctx.fillRect(2,-28,29,5);ctx.beginPath();ctx.moveTo(7,-24);ctx.lineTo(0,-11);ctx.lineTo(12,-16);ctx.fill();ctx.restore()}
 function acorn(x,y){ctx.save();ctx.translate(x,y);ctx.rotate(.25);ellipse(0,2,9,12,'#d9b46b');ellipse(0,-6,11,5,'#8c7345');ctx.strokeStyle='#a78c54';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(3,-15);ctx.stroke();ctx.restore()}
 function draw(){const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#13292d');sky.addColorStop(1,'#2d493d');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);for(let i=0;i<65;i++)ellipse((i*137+53)%W,(i*83)%H,1,1,'#b8c79a55');ellipse(805,40,23,23,'#e5deb1');ellipse(814,34,22,22,'#142c2c');ctx.fillStyle='#152e2b';ctx.fillRect(38,65,824,550);for(let i=0;i<6;i++){const y=floors[i];ctx.fillStyle='#60744b';ctx.fillRect(50,y,800,6);ctx.fillStyle='#344d38';ctx.fillRect(50,y+6,800,12);ctx.fillStyle='#20392f';for(let x=65;x<850;x+=42)ctx.fillRect(x,y+9,25,3);ctx.font='10px sans-serif';ctx.fillStyle='#9bae82';ctx.fillText(`${i+1}F`,17,y-12)}
@@ -31,8 +75,8 @@ for(const p of pins){for(let i=-1;i<=1;i++){const x=p.x+i*12;ctx.fillStyle='#abb
 for(const a of acorns)if(!a.taken)acorn(a.x,a.y+Math.sin(elapsed*3+a.x)*2);
 for(const e of enemies){const bob=Math.sin(elapsed*10+e.x)*1.3;ellipse(e.x,e.y-10+bob,20,12,'#c37468');ellipse(e.x-10,e.y-21+bob,6,7,'#c37468');ellipse(e.x+10,e.y-21+bob,6,7,'#c37468');ellipse(e.x-7,e.y-12+bob,3,4,'#f1ddac');ellipse(e.x+7,e.y-12+bob,3,4,'#f1ddac');ellipse(e.x-7+Math.sign(e.v),e.y-12+bob,1.5,2.5,'#283c32');ellipse(e.x+7+Math.sign(e.v),e.y-12+bob,1.5,2.5,'#283c32');ctx.strokeStyle='#7d4b47';ctx.lineWidth=2;for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(e.x+i*11,e.y-4);ctx.lineTo(e.x+i*13+Math.sin(elapsed*12)*3,e.y);ctx.stroke()}}
 ctx.fillStyle='#d6c796';ctx.fillRect(813,37,4,53);ctx.fillStyle='#d5dc91';ctx.beginPath();ctx.moveTo(817,38);ctx.lineTo(852,48);ctx.lineTo(817,61);ctx.fill();ctx.font='10px sans-serif';ctx.fillStyle='#c1d3a1';ctx.fillText('GOAL',800,28);if(invincible<=0||Math.floor(invincible*10)%2===0)raccoon(player.x,player.y);ctx.fillStyle='#d9e1b7';ctx.font='15px sans-serif';ctx.fillText('♥'.repeat(Math.max(0,lives)),58,35)}
-$('#start').onclick=()=>{state==='paused'?pause():start()};$('#pause').onclick=pause;$('#sound').onclick=()=>{sound=!sound;$('#sound').style.background=sound?'#e5e8b4':'';$('#sound').setAttribute('aria-label',sound?'소리 끄기':'소리 켜기');beep(600)};
+$('#start').onclick=()=>{if(state==='paused')pause();else if(state==='cleared')nextStage();else start()};$('#pause').onclick=pause;$('#sound').onclick=()=>{sound=!sound;$('#sound').style.background=sound?'#e5e8b4':'';$('#sound').setAttribute('aria-label',sound?'소리 끄기':'소리 켜기');beep(600)};
 const aliases={KeyA:'ArrowLeft',KeyD:'ArrowRight',KeyW:'ArrowUp',KeyS:'ArrowDown'};
 window.addEventListener('keydown',e=>{const key=aliases[e.code]||e.code;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(key)){if(e.target instanceof HTMLButtonElement&&key==='Space')return;e.preventDefault();if(state!=='running')return;keys.add(key);if(key==='Space'&&!e.repeat)jump()}if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat)pause()});window.addEventListener('keyup',e=>keys.delete(aliases[e.code]||e.code));
 for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('pointerdown',e=>{e.preventDefault();if(state!=='running')return;b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);b.classList.add('pressed');if(b.dataset.key==='Space')jump()});for(const event of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(event,()=>{keys.delete(b.dataset.key);b.classList.remove('pressed')})}
-function blur(){keys.clear();if(state==='running')pause()}window.addEventListener('blur',blur);document.addEventListener('visibilitychange',()=>{if(document.hidden)blur()});function frame(now){const dt=Math.min((now-last)/1000,.033);last=now;update(dt);draw();requestAnimationFrame(frame)}hud();requestAnimationFrame(frame);
+function blur(){keys.clear();if(state==='running')pause()}window.addEventListener('blur',blur);document.addEventListener('visibilitychange',()=>{if(document.hidden)blur()});function frame(now){const dt=Math.min((now-last)/1000,.033);last=now;update(dt);draw();requestAnimationFrame(frame)}loadStage();state='ready';overlay.classList.remove('hidden');hud();requestAnimationFrame(frame);
